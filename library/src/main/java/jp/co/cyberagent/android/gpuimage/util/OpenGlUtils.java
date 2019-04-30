@@ -23,6 +23,7 @@ import android.opengl.GLES20;
 import android.opengl.GLUtils;
 import android.util.Log;
 
+import java.nio.ByteBuffer;
 import java.nio.IntBuffer;
 
 public class OpenGlUtils {
@@ -58,7 +59,7 @@ public class OpenGlUtils {
         return textures[0];
     }
 
-    public static int loadTexture(final IntBuffer data, final int width, final int height, final int usedTexId) {
+    public static int loadTexture(final ByteBuffer data, final int width, final int height, final int usedTexId) {
         int textures[] = new int[1];
         if (usedTexId == NO_TEXTURE) {
             GLES20.glGenTextures(1, textures, 0);

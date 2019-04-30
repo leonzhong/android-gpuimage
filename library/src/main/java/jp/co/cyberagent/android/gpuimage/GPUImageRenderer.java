@@ -16,14 +16,17 @@
 
 package jp.co.cyberagent.android.gpuimage;
 
+import android.content.Context;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
+import android.graphics.ImageFormat;
 import android.graphics.SurfaceTexture;
 import android.hardware.Camera;
 import android.hardware.Camera.PreviewCallback;
 import android.hardware.Camera.Size;
 import android.opengl.GLES20;
 import android.opengl.GLSurfaceView;
+import android.util.Log;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -42,6 +45,7 @@ import jp.co.cyberagent.android.gpuimage.util.Rotation;
 import jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil;
 
 import static jp.co.cyberagent.android.gpuimage.util.TextureRotationUtil.TEXTURE_NO_ROTATION;
+import android.renderscript.*;
 
 public class GPUImageRenderer implements GLSurfaceView.Renderer, GLTextureView.Renderer, PreviewCallback {
     private static final int NO_IMAGE = -1;
@@ -79,7 +83,16 @@ public class GPUImageRenderer implements GLSurfaceView.Renderer, GLTextureView.R
     private float backgroundGreen = 0;
     private float backgroundBlue = 0;
 
-    public GPUImageRenderer(final GPUImageFilter filter) {
+    private RenderScript rs;
+    private ScriptIntrinsicYuvToRGB yuvToRGBIntrinsic;
+    private Type.Builder yuvType, rgbaType;
+    private Allocation in,out;
+    private  Context context;
+    private byte[]previewBuffer;
+    private ByteBuffer previewByteBuffer;
+
+
+    public GPUImageRenderer(final Context ctx, final GPUImageFilter filter) {
         this.filter = filter;
         runOnDraw = new LinkedList<>();
         runOnDrawEnd = new LinkedList<>();
@@ -93,7 +106,11 @@ public class GPUImageRenderer implements GLSurfaceView.Renderer, GLTextureView.R
                 .order(ByteOrder.nativeOrder())
                 .asFloatBuffer();
         setRotation(Rotation.NORMAL, false, false);
+        context = ctx;
     }
+
+
+
 
     @Override
     public void onSurfaceCreated(final GL10 unused, final EGLConfig config) {
@@ -153,16 +170,54 @@ public class GPUImageRenderer implements GLSurfaceView.Renderer, GLTextureView.R
         onPreviewFrame(data, previewSize.width, previewSize.height);
     }
 
+
+
+    private void initRenderScript(final Context ctx, int w, int h){
+
+        Log.v("renderscript","initRenderScript");
+        rs = RenderScript.create(ctx);
+
+        yuvToRGBIntrinsic = ScriptIntrinsicYuvToRGB.create(rs,Element.U8_4(rs));
+
+        yuvType = new Type.Builder(rs, Element.U8(rs)).setX(w).
+                setY(h).setMipmaps(false).setYuvFormat(ImageFormat.NV21);
+        in = Allocation.createTyped(rs, yuvType.create(), Allocation.USAGE_SCRIPT);
+
+        rgbaType = new Type.Builder(rs, Element.RGBA_8888(rs)).setX(w).
+                setY(h).setMipmaps(false);
+        out = Allocation.createTyped(rs, rgbaType.create(), Allocation.USAGE_SCRIPT);
+
+        previewBuffer = new byte[w*h*4];
+        previewByteBuffer = ByteBuffer.allocate(w*h*4);
+    }
+
     public void onPreviewFrame(final byte[] data, final int width, final int height) {
         if (glRgbBuffer == null) {
             glRgbBuffer = IntBuffer.allocate(width * height);
         }
+
+        if(rs == null){
+            initRenderScript(this.context, width, height);
+        }
+
         if (runOnDraw.isEmpty()) {
             runOnDraw(new Runnable() {
                 @Override
                 public void run() {
-                    GPUImageNativeLibrary.YUVtoRBGA(data, width, height, glRgbBuffer.array());
-                    glTextureId = OpenGlUtils.loadTexture(glRgbBuffer, width, height, glTextureId);
+
+                    // convert yuv to rgb
+                    in.copyFrom(data);
+                    yuvToRGBIntrinsic.setInput(in);
+                    yuvToRGBIntrinsic.forEach(out);
+                    out.copyTo(previewBuffer);
+                    synchronized (this) {
+                        previewByteBuffer.clear();
+                        previewByteBuffer.put(previewBuffer);
+                    }
+
+                    previewByteBuffer.clear(); // 为啥不加这句会crash？？？
+
+                    glTextureId = OpenGlUtils.loadTexture(previewByteBuffer, width, height, glTextureId);
 
                     if (imageWidth != width) {
                         imageWidth = width;

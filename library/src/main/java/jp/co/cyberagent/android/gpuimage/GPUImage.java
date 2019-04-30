@@ -80,7 +80,7 @@ public class GPUImage {
 
         this.context = context;
         filter = new GPUImageFilter();
-        renderer = new GPUImageRenderer(filter);
+        renderer = new GPUImageRenderer(context,filter);
     }
 
     /**
@@ -363,7 +363,7 @@ public class GPUImage {
             }
         }
 
-        GPUImageRenderer renderer = new GPUImageRenderer(filter);
+        GPUImageRenderer renderer = new GPUImageRenderer(this.context,filter);
         renderer.setRotation(Rotation.NORMAL,
                 this.renderer.isFlippedHorizontally(), this.renderer.isFlippedVertically());
         renderer.setScaleType(scaleType);
@@ -400,7 +400,7 @@ public class GPUImage {
         if (filters.isEmpty()) {
             return;
         }
-        GPUImageRenderer renderer = new GPUImageRenderer(filters.get(0));
+        GPUImageRenderer renderer = new GPUImageRenderer(null,filters.get(0));
         renderer.setImageBitmap(bitmap, false);
         PixelBuffer buffer = new PixelBuffer(bitmap.getWidth(), bitmap.getHeight());
         buffer.setRenderer(renderer);
