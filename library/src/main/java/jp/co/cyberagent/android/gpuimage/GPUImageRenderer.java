@@ -214,9 +214,7 @@ public class GPUImageRenderer implements GLSurfaceView.Renderer, GLTextureView.R
                         previewByteBuffer.clear();
                         previewByteBuffer.put(previewBuffer);
                     }
-
-                    previewByteBuffer.clear(); // 为啥不加这句会crash？？？
-
+                    previewByteBuffer.position(0);
                     glTextureId = OpenGlUtils.loadTexture(previewByteBuffer, width, height, glTextureId);
 
                     if (imageWidth != width) {
